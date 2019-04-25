@@ -3,7 +3,8 @@ import sys
 import _thread
 import datetime
 
-def Block(connection, address):
+
+def Get_Block_MSG():
     date_time = datetime.datetime.utcnow()  # get current GMT time
     __date = str(date_time).split(' ')[0]  # get date from date_time
     __date = datetime.datetime.strptime(__date, '%Y-%m-%d').strftime('%d %b %Y')  # yyyy-mm-dd -> dd mon yyyy
@@ -28,18 +29,26 @@ def Block(connection, address):
 def SocketThread(connection, address):
     print('Started new thread for', address)
     req = connection.recv(1024)
-    req_decoded = req.decode('utf-8')  # decode bytestring to string
+    req_decoded = str(req, errors='ignore')  # decode bytestring to string
+
     webaddress = req_decoded.split('\n')[0]  # get first line
     http_method = req_decoded.split(' ')[0]  # get http method
+    if http_method in ('GET'):
+        response = Get_Block_MSG()
+        connection.send(response)
+        connection.close()
+        return
+
+    # split request by headers
+    req_headers = req_decoded.splitlines()
+    host_pos = 0
+    for i in range(req_headers.__len__()):
+        if 'Host: ' in req_headers[i]:
+            host_pos = i
 
     # get requested website
+    webaddress = req_headers[host_pos]
     webaddress = webaddress.split(' ')[1]
-    webaddress = webaddress.split(' ')[0]
-
-    # split 'http://'
-    http_header = webaddress.find('://')
-    if http_header is not -1:
-        webaddress = webaddress.split('://')[1]
 
     # get port
     webport = 80  # default http port
@@ -60,7 +69,6 @@ def SocketThread(connection, address):
             connection.close()
             print('Connection Error:', socket.error)
         sys.exit(1)
-
     
     print('Connecting to', webaddress, 'at', webport)
     Client_Socket.connect((webaddress,webport))
@@ -78,7 +86,7 @@ def SocketThread(connection, address):
 
 
 class ProxyServer:
-    def __init__(self,LOCALIP,PORT):
+    def __init__(self,IP,PORT):
         print('Initializing Proxy Socket...')
         try:
             self.Server_Socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # construct socket to browser
@@ -88,8 +96,8 @@ class ProxyServer:
             print('Socket Init Error:', socket.error)
             sys.exit(1)
 
-        self.Server_Socket.bind((LOCALIP,PORT))  # bind socket to localhost at 8888
-        print('Proxy socket initialized at', LOCALIP, PORT)
+        self.Server_Socket.bind((IP,PORT))  # bind socket to localhost at 8888
+        print('Proxy socket initialized at', IP, PORT)
 
     def StartServer(self):
         print('Listening for connections...')
@@ -104,6 +112,9 @@ class ProxyServer:
 def main():
     proxy = ProxyServer('127.0.0.1', 8888)
     proxy.StartServer()
+    #bytestr = b'GET abc.com.vn HTTP/1.1'
+    #space_pos = bytestr.find(' ')
+    #print(space_pos)
 
 if __name__ == '__main__':
     main()
