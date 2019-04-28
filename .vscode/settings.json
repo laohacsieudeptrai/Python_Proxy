@@ -3,7 +3,7 @@
     "python.linting.pep8Enabled": true,
     "python.linting.enabled": true,
     "python.linting.pep8Args": [
-        "--ignore=E501,E24,W504",
+        "--ignore=E501,E24,E303,W504",
         "--verbose"
     ]
 }

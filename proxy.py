@@ -6,7 +6,7 @@ import datetime
 
 def Get_Block_MSG():
     # HTTP/1.1 403 Forbidden\r\n
-    # Date: DiW, dd mon yyyy hh:mm:ss GMT\n\n
+    # Date: DiW, dd mon yyyy hh:mm:ss GMT\n\n  (DiW = Day in Week: Mon, Tue, Wed,...)
     # Connection: Closed\r\n
     # \r\n
     # <!DOCTYPE HTML>\r\n
@@ -21,14 +21,15 @@ def Get_Block_MSG():
     # </html>\r\n
     # \r\n
 
-    date_time = datetime.datetime.utcnow()  # get current GMT time
-    __date = str(date_time).split(' ')[0]  # get date from date_time
+    date_time = datetime.datetime.utcnow()				# get current GMT time
+    __date = str(date_time).split(' ')[0]				# get date from date_time
     __date = datetime.datetime.strptime(
-        __date, '%Y-%m-%d').strftime('%d %b %Y')  # yyyy-mm-dd -> dd mon yyyy
-    __time = str(date_time).split(' ')[1]  # get time from date_time
-    __time = str(__time).split('.')[0]  # remove miliseconds from time
+        __date, '%Y-%m-%d').strftime('%d %b %Y')		# yyyy-mm-dd -> dd mon yyyy
+    __time = str(date_time).split(' ')[1]				# get time from date_time
+    # remove miliseconds from time
+    __time = str(__time).split('.')[0]
     day_in_week = datetime.datetime.strptime(
-        __date, '%d %b %Y').strftime('%a')  # dd mon yyyy -> day in week
+        __date, '%d %b %Y').strftime('%a')				# dd mon yyyy -> day in week
 
     # construct http headers
     __header = 'HTTP/1.1 403 Forbidden\r\n'
@@ -42,13 +43,16 @@ def Get_Block_MSG():
     return(http_403.encode('utf-8') + http_body.encode('utf-8'))
 
 
-def SocketThread(connection, address):
+# handle each socket thread
+def SocketThread(connection, address, blacklist):
     print('Started new thread for', address)
     req = connection.recv(1024)
-    req_decoded = str(req, errors='ignore')  # decode bytestring to string
+    # decode bytestring to string
+    req_decoded = str(req, errors='ignore')
 
-    webaddress = req_decoded.split('\n')[0]  # get first line
-    http_method = req_decoded.split(' ')[0]  # get http method
+    webaddress = req_decoded.split('\n')[0]				# get first line
+    http_method = req_decoded.split(' ')[0]				# get http method
+    # block https requests
     if http_method in ('CONNECT'):
         response = Get_Block_MSG()
         connection.send(response)
@@ -67,15 +71,35 @@ def SocketThread(connection, address):
     webaddress = webaddress.split(' ')[1]
 
     # get port
-    webport = 80  # default http port
+    webport = 80										# default http port 80
     port_position = webaddress.find(':')
     if port_position is not -1:
         webport = int(webaddress.split(':')[1])
         webaddress = webaddress.split(':')[0]
 
+    # block blacklisted requests
+    if webaddress in blacklist:
+        response = Get_Block_MSG()
+        connection.send(response)
+        connection.close()
+        return
+
     try:
         # construct socket to webserver
         Client_Socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        print('Connecting to', webaddress, 'at', webport)
+        Client_Socket.connect((webaddress, webport))
+        Client_Socket.send(req)
+
+        while True:
+            response = Client_Socket.recv(1024)
+            if response.__len__():
+                connection.send(response)
+            else:
+                break
+
+        Client_Socket.close()
+        connection.close()
 
     except socket.error as err:
         if Client_Socket:
@@ -86,35 +110,28 @@ def SocketThread(connection, address):
             print(f'Connection Error: {err}')
         sys.exit(1)
 
-    print('Connecting to', webaddress, 'at', webport)
-    Client_Socket.connect((webaddress, webport))
-    Client_Socket.send(req)
-
-    while True:
-        response = Client_Socket.recv(1024)
-        if response.__len__():
-            connection.send(response)
-        else:
-            break
-
-    Client_Socket.close()
-    connection.close()
-
 
 class ProxyServer:
+    # initialize socket to browser
     def __init__(self, IP, PORT):
         print('Initializing Proxy Socket...')
         try:
+            # construct socket to browser
             self.Server_Socket = socket.socket(
-                socket.AF_INET, socket.SOCK_STREAM)  # construct socket to browser
+                socket.AF_INET, socket.SOCK_STREAM)
+            # bind socket to localhost at 8888
+            self.Server_Socket.bind((IP, PORT))
         except socket.error as err:
             if self.Server_Socket:
                 self.Server_Socket.close()
             print(f'Socket Init Error: {err}')
             sys.exit(1)
 
-        self.Server_Socket.bind((IP, PORT))  # bind socket to localhost at 8888
         print('Proxy socket initialized at', IP, PORT)
+
+        self.blacklist = self.Read_Blacklist()
+
+    # start proxy server
 
     def StartServer(self):
         print('Listening for connections...')
@@ -124,22 +141,24 @@ class ProxyServer:
             # accept incoming connections
             (self.Connections, self.Address) = self.Server_Socket.accept()
             print('Connected to', self.Address)
-            # create new threads for each connection
+            # create new thread for each connection
             _thread.start_new_thread(
-                SocketThread, (self.Connections, self.Address))
+                SocketThread, (self.Connections, self.Address, self.blacklist))
         self.Server_Socket.close()
+
+    # read blacklist
 
     def Read_Blacklist(self):
         file = open('blacklist.conf', 'r+')
         blacklist = file.read()
         blacklist = blacklist.splitlines()
-        print(blacklist)
+        file.close()
+        return(blacklist)
 
 
 def main():
     proxy = ProxyServer('127.0.0.1', 8888)
-    # proxy.StartServer()
-    proxy.Read_Blacklist()
+    proxy.StartServer()
 
 
 if __name__ == '__main__':
