@@ -129,10 +129,17 @@ class ProxyServer:
                 SocketThread, (self.Connections, self.Address))
         self.Server_Socket.close()
 
+    def Read_Blacklist(self):
+        file = open('blacklist.conf', 'r+')
+        blacklist = file.read()
+        blacklist = blacklist.splitlines()
+        print(blacklist)
+
 
 def main():
     proxy = ProxyServer('127.0.0.1', 8888)
-    proxy.StartServer()
+    # proxy.StartServer()
+    proxy.Read_Blacklist()
 
 
 if __name__ == '__main__':
