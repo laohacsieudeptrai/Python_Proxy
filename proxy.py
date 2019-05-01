@@ -87,18 +87,39 @@ def SocketThread(connection, address):
         sys.exit(1)
 
     print('Connecting to', webaddress, 'at', webport)
-    Client_Socket.connect((webaddress, webport))
-    Client_Socket.send(req)
-
-    while True:
-        response = Client_Socket.recv(1024)
-        if response.__len__():
-            connection.send(response)
-        else:
-            break
-
+    blacklist = Read_BlackList()
+    Check = Check_BlackList(webaddress, blacklist)
+    if Check:
+        Client_Socket.connect((webaddress, webport))
+        Client_Socket.send(req)
+        while True:
+            response = Client_Socket.recv(1024)
+            if response.__len__():
+                connection.send(response)
+            else:
+                break
+    else:
+        response = Get_Block_MSG()
+        connection.send(response)
     Client_Socket.close()
     connection.close()
+
+
+def Read_BlackList():
+    f = open("blacklist.conf", "r")
+    if f.mode == "r":
+        blacklist = f.readlines()
+        for i in range(len(blacklist) - 1):
+            blacklist[i] = blacklist[i][:len(blacklist[i]) - 1]
+        f.close()
+        return blacklist
+
+
+def Check_BlackList(webaddress, blacklist):
+        for x in blacklist:
+            if webaddress == x:
+                return False
+        return True
 
 
 class ProxyServer:
@@ -129,17 +150,10 @@ class ProxyServer:
                 SocketThread, (self.Connections, self.Address))
         self.Server_Socket.close()
 
-    def Read_Blacklist(self):
-        file = open('blacklist.conf', 'r+')
-        blacklist = file.read()
-        blacklist = blacklist.splitlines()
-        print(blacklist)
-
 
 def main():
     proxy = ProxyServer('127.0.0.1', 8888)
-    # proxy.StartServer()
-    proxy.Read_Blacklist()
+    proxy.StartServer()
 
 
 if __name__ == '__main__':
