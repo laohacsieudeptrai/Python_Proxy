@@ -2,6 +2,8 @@ import socket
 import sys
 import _thread
 import datetime
+from urllib.request import Request,urlopen,HTTPErrorProcessor
+import argparse 
 
 
 def Get_Block_MSG():
@@ -46,7 +48,6 @@ def SocketThread(connection, address):
     print('Started new thread for', address)
     req = connection.recv(1024)
     req_decoded = str(req, errors='ignore')  # decode bytestring to string
-
     webaddress = req_decoded.split('\n')[0]  # get first line
     http_method = req_decoded.split(' ')[0]  # get http method
     if http_method in ('CONNECT'):
@@ -54,6 +55,11 @@ def SocketThread(connection, address):
         connection.send(response)
         connection.close()
         return
+    #get url
+    find=webaddress.find(' ')
+    url_get=webaddress[find+1:]
+    find=url_get.find(' ')
+    url_get=url_get[:find]
 
     # split request by headers
     req_headers = req_decoded.splitlines()
@@ -86,24 +92,41 @@ def SocketThread(connection, address):
             print(f'Connection Error: {err}')
         sys.exit(1)
 
-    print('Connecting to', webaddress, 'at', webport)
-    blacklist = Read_BlackList()
-    Check = Check_BlackList(webaddress, blacklist)
-    if Check:
+    #replace \ / : * ? " > < |
+    url_get=url_get.replace('/','')
+    url_get=url_get.replace(':','')
+    url_get=url_get.replace('*','')
+    url_get=url_get.replace('?','')
+    url_get=url_get.replace('"','')
+    url_get=url_get.replace('<','')
+    url_get=url_get.replace('>','')
+    url_get=url_get.replace('|','')
+    try:
+        fetch_cache=open(url_get+'.txt','rb')
+        read_cache=fetch_cache.read()
+        connection.sendall(read_cache)
+        fetch_cache.close()
+        print('fetch from cache success')
+    except IOError:
+        print('Connecting to', webaddress, 'at', webport,'at',address)
         Client_Socket.connect((webaddress, webport))
         Client_Socket.send(req)
+        data=b"" 
         while True:
             response = Client_Socket.recv(1024)
+            data=data+response
             if response.__len__():
                 connection.send(response)
             else:
                 break
-    else:
-        response = Get_Block_MSG()
-        connection.send(response)
+        save_cache=writefile(data,webaddress,url_get)
     Client_Socket.close()
     connection.close()
-
+   
+def writefile(data,webaddress,url_get):
+    f=open(url_get+'.txt','wb')
+    f.write(data)
+    f.close()
 
 def Read_BlackList():
     f = open("blacklist.conf", "r")
