@@ -95,26 +95,25 @@ def SocketThread(connection, address, blacklist):
             connection.close()
             print(f'Connection Error: {err}')
         sys.exit(1)
+    Check = Check_BlackList(webaddress,blacklist)
+    if Check:
+        try:
+            #replace \ / : * ? " > < |
+            url_get = url_get.replace('/','')
+            url_get = url_get.replace(':','')
+            url_get = url_get.replace('*','')
+            url_get = url_get.replace('?','')
+            url_get = url_get.replace('"','')
+            url_get = url_get.replace('<','')
+            url_get = url_get.replace('>','')
+            url_get = url_get.replace('|','')
+            fetch_cache = open('cache/' + url_get + '.txt', 'rb')
+            read_cache = fetch_cache.read()
+            connection.sendall(read_cache)
+            fetch_cache.close()
 
-    #replace \ / : * ? " > < |
-    url_get = url_get.replace('/','')
-    url_get = url_get.replace(':','')
-    url_get = url_get.replace('*','')
-    url_get = url_get.replace('?','')
-    url_get = url_get.replace('"','')
-    url_get = url_get.replace('<','')
-    url_get = url_get.replace('>','')
-    url_get = url_get.replace('|','')
-    try:
-        fetch_cache = open('cache/' + url_get + '.txt', 'rb')
-        read_cache = fetch_cache.read()
-        connection.sendall(read_cache)
-        fetch_cache.close()
-
-    except IOError:
-        print('Connecting to', webaddress, 'at', webport, 'at', address)
-        Check = Check_BlackList(webaddress, blacklist)
-        if Check:
+        except IOError:
+            print('Connecting to', webaddress, 'at', webport, 'at', address)
             Client_Socket.connect((webaddress, webport))
             Client_Socket.send(req)
             data=b"" 
@@ -126,12 +125,12 @@ def SocketThread(connection, address, blacklist):
                 else:
                     break
             save_cache = writefile(data, webaddress, url_get)
-        else:
-            response = Get_Block_MSG()
-            connection.send(response)
+    else:
+        response = Get_Block_MSG()
+        connection.send(response)
     
-        Client_Socket.close()
-        connection.close()
+    Client_Socket.close()
+    connection.close()
    
 
 def writefile(data,webaddress,url_get):
@@ -213,11 +212,10 @@ def checkdate_new(filename):
 
 
 def main():
-    # checkdate()
-    # proxy = ProxyServer('127.0.0.1', 8888)
-    # proxy.StartServer()
-    checkdate_new('D:/Schoolwork/MMT/TH/Do An 1/403.html')
-
+    checkdate()
+    proxy = ProxyServer('127.0.0.1', 8888)
+    proxy.StartServer()
+    
 
 if __name__ == '__main__':
     main()
