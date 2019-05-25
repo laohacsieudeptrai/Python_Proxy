@@ -8,6 +8,7 @@ import os
 import time
 import stat
 
+
 def Get_Block_MSG():
     # HTTP/1.1 403 Forbidden\r\n
     # Date: DiW, dd mon yyyy hh:mm:ss GMT\n\n
@@ -46,7 +47,7 @@ def Get_Block_MSG():
     return(http_403.encode('utf-8') + http_body.encode('utf-8'))
 
 
-def SocketThread(connection, address):
+def SocketThread(connection, address, blacklist):
     print('Started new thread for', address)
     req = connection.recv(1024)
     req_decoded = str(req, errors='ignore')  # decode bytestring to string
@@ -57,6 +58,7 @@ def SocketThread(connection, address):
         connection.send(response)
         connection.close()
         return
+
     #get url
     find=webaddress.find(' ')
     url_get=webaddress[find+1:]
@@ -95,40 +97,48 @@ def SocketThread(connection, address):
         sys.exit(1)
 
     #replace \ / : * ? " > < |
-    url_get=url_get.replace('/','')
-    url_get=url_get.replace(':','')
-    url_get=url_get.replace('*','')
-    url_get=url_get.replace('?','')
-    url_get=url_get.replace('"','')
-    url_get=url_get.replace('<','')
-    url_get=url_get.replace('>','')
-    url_get=url_get.replace('|','')
+    url_get = url_get.replace('/','')
+    url_get = url_get.replace(':','')
+    url_get = url_get.replace('*','')
+    url_get = url_get.replace('?','')
+    url_get = url_get.replace('"','')
+    url_get = url_get.replace('<','')
+    url_get = url_get.replace('>','')
+    url_get = url_get.replace('|','')
     try:
-        fetch_cache=open('cache/'+url_get+'.txt','rb')
-        read_cache=fetch_cache.read()
+        fetch_cache = open('cache/' + url_get + '.txt', 'rb')
+        read_cache = fetch_cache.read()
         connection.sendall(read_cache)
         fetch_cache.close()
-        print('fetch from cache success')
+
     except IOError:
-        print('Connecting to', webaddress, 'at', webport,'at',address)
-        Client_Socket.connect((webaddress, webport))
-        Client_Socket.send(req)
-        data=b"" 
-        while True:
-            response = Client_Socket.recv(1024)
-            data=data+response
-            if response.__len__():
-                connection.send(response)
-            else:
-                break
-        save_cache=writefile(data,webaddress,url_get)
-    Client_Socket.close()
-    connection.close()
+        print('Connecting to', webaddress, 'at', webport, 'at', address)
+        Check = Check_BlackList(webaddress, blacklist)
+        if Check:
+            Client_Socket.connect((webaddress, webport))
+            Client_Socket.send(req)
+            data=b"" 
+            while True:
+                response = Client_Socket.recv(1024)
+                data=data+response
+                if response.__len__():
+                    connection.send(response)
+                else:
+                    break
+            save_cache = writefile(data, webaddress, url_get)
+        else:
+            response = Get_Block_MSG()
+            connection.send(response)
+    
+        Client_Socket.close()
+        connection.close()
    
+
 def writefile(data,webaddress,url_get):
-    f=open('cache/'+url_get+'.txt','wb')
+    f = open('cache/' + url_get + '.txt', 'wb')
     f.write(data)
     f.close()
+
 
 def Read_BlackList():
     f = open("blacklist.conf", "r")
@@ -161,6 +171,7 @@ class ProxyServer:
 
         self.Server_Socket.bind((IP, PORT))  # bind socket to localhost at 8888
         print('Proxy socket initialized at', IP, PORT)
+        self.blacklist = Read_BlackList()
 
     def StartServer(self):
         print('Listening for connections...')
@@ -172,29 +183,40 @@ class ProxyServer:
             print('Connected to', self.Address)
             # create new threads for each connection
             _thread.start_new_thread(
-                SocketThread, (self.Connections, self.Address))
+                SocketThread, (self.Connections, self.Address, self.blacklist))
         self.Server_Socket.close()
+
+
 def checkdate():
-    checkcache=os.listdir('cache/') #read all txt from cache directory
-    if len(checkcache)==0:
-        print('cache empty')
+    checkcache = os.listdir('cache/')  #read all txt from cache directory
+    if len(checkcache) == 0:
         return
-    getlocal=datetime.datetime.now() #get local time to calculate
+    now = int(time.time())  #get current time
     for file in checkcache:
-        gettime=os.path.getmtime('cache/'+file) #get last modification time
-        lastmodify=datetime.datetime.utcfromtimestamp(gettime) #convert to datetime
-        checkdate=getlocal-lastmodify #check time between now and last modification
-        checkdate=checkdate.total_seconds()#convert to seconds
-        checkdate=divmod(checkdate,60)[0]# find date
-        if checkdate > 2: # if more than 2 mins
-            os.remove('cache/'+file)
-    if len(checkcache)==0:
-        print('all file has out of date and has been deleted')
+        lastmodify = int(os.path.getmtime('cache/' + file))  #get last modification time
+        checkdate = now - lastmodify  #check time between now and last modification
+        checkdate = divmod(checkdate, 60)[0]  # find minutes
+        if checkdate > 2:  # if more than 2 mins
+            os.remove('cache/' + file)
+
+
+def checkdate_new(filename):
+    # checkcache = os.listdir('cache/')  #read all txt from cache directory
+    # if len(checkcache) == 0:
+    #     return
+    now = int(time.time())  #get current time
+    #for file in checkcache:
+    lastmodify = int(os.path.getmtime(filename))  #get last modification time
+    checkdate = now - lastmodify  #check time between now and last modification
+    checkdate = divmod(checkdate,60)[0]  # find minutes
+    print(checkdate)
+
+
 def main():
-    checkdate()
-    print('check cache complete')
-    proxy = ProxyServer('127.0.0.1', 8888)
-    proxy.StartServer()
+    # checkdate()
+    # proxy = ProxyServer('127.0.0.1', 8888)
+    # proxy.StartServer()
+    checkdate_new('D:/Schoolwork/MMT/TH/Do An 1/403.html')
 
 
 if __name__ == '__main__':
