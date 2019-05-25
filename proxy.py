@@ -93,6 +93,7 @@ def SocketThread(connection, address):
             connection.close()
             print(f'Connection Error: {err}')
         sys.exit(1)
+
     #replace \ / : * ? " > < |
     url_get=url_get.replace('/','')
     url_get=url_get.replace(':','')
@@ -128,6 +129,24 @@ def writefile(data,webaddress,url_get):
     f=open('cache/'+url_get+'.txt','wb')
     f.write(data)
     f.close()
+
+def Read_BlackList():
+    f = open("blacklist.conf", "r")
+    if f.mode == "r":
+        blacklist = f.readlines()
+        for i in range(len(blacklist) - 1):
+            blacklist[i] = blacklist[i][:len(blacklist[i]) - 1]
+        f.close()
+        return blacklist
+
+
+def Check_BlackList(webaddress, blacklist):
+        for x in blacklist:
+            if webaddress == x:
+                return False
+        return True
+
+
 class ProxyServer:
     def __init__(self, IP, PORT):
         print('Initializing Proxy Socket...')
