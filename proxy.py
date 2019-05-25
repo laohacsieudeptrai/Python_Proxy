@@ -4,7 +4,9 @@ import _thread
 import datetime
 from urllib.request import Request,urlopen,HTTPErrorProcessor
 import argparse 
-
+import os
+import time
+import stat
 
 def Get_Block_MSG():
     # HTTP/1.1 403 Forbidden\r\n
@@ -101,7 +103,7 @@ def SocketThread(connection, address):
     url_get=url_get.replace('>','')
     url_get=url_get.replace('|','')
     try:
-        fetch_cache=open(url_get+'.txt','rb')
+        fetch_cache=open('cache/'+url_get+'.txt','rb')
         read_cache=fetch_cache.read()
         connection.sendall(read_cache)
         fetch_cache.close()
@@ -123,10 +125,9 @@ def SocketThread(connection, address):
     connection.close()
    
 def writefile(data,webaddress,url_get):
-    f=open(url_get+'.txt','wb')
+    f=open('cache/'+url_get+'.txt','wb')
     f.write(data)
     f.close()
-
 class ProxyServer:
     def __init__(self, IP, PORT):
         print('Initializing Proxy Socket...')
@@ -154,9 +155,25 @@ class ProxyServer:
             _thread.start_new_thread(
                 SocketThread, (self.Connections, self.Address))
         self.Server_Socket.close()
-
-
+def checkdate():
+    checkcache=os.listdir('cache/') #read all txt from cache directory
+    if len(checkcache)==0:
+        print('cache empty')
+        return
+    getlocal=datetime.datetime.now() #get local time to calculate
+    for file in checkcache:
+        gettime=os.path.getmtime('cache/'+file) #get last modification time
+        lastmodify=datetime.datetime.utcfromtimestamp(gettime) #convert to datetime
+        checkdate=getlocal-lastmodify #check time between now and last modification
+        checkdate=checkdate.total_seconds()#convert to seconds
+        checkdate=divmod(checkdate,60)[0]# find date
+        if checkdate > 2: # if more than 2 mins
+            os.remove('cache/'+file)
+    if len(checkcache)==0:
+        print('all file has out of date and has been deleted')
 def main():
+    checkdate()
+    print('check cache complete')
     proxy = ProxyServer('127.0.0.1', 8888)
     proxy.StartServer()
 
